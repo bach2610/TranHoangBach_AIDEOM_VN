@@ -53,6 +53,37 @@ allocations = {
 }
 current_alloc = allocations[scenario.split(".")[0]]
 
+# ==========================================
+# HÀM TÍNH TOÁN ĐỘNG (BACKEND TỪ BÀI 9)
+# ==========================================
+def calculate_dynamic_labor_impact(alloc_pct, df):
+    df_calc = df.copy()
+    budget_total = 50000 # Giả định ngân sách 50.000 tỷ VND
+    
+    # Lấy % ngân sách AI và Nhân lực (H) từ kịch bản đang chọn (S1-S5)
+    budget_AI = budget_total * (alloc_pct[2] / 100)
+    budget_H = budget_total * (alloc_pct[3] / 100)
+    
+    # Phân bổ vốn AI và H về các ngành (Tạm phân bổ theo tỷ trọng LĐ)
+    total_labor = df_calc['labor_million'].sum()
+    df_calc['budget_AI_sector'] = budget_AI * (df_calc['labor_million'] / total_labor)
+    df_calc['budget_H_sector'] = budget_H * (df_calc['labor_million'] / total_labor)
+    
+    # Tính toán NewJob, UpgradeJob và DisplacedJob theo hệ số của Bài 9
+    # Giả định hệ số trung bình (thực tế lấy từ biến a1, b1, c1 trong bài)
+    a_mean, b_mean, c_mean = 25, 30, 45 
+    
+    df_calc['NewJob'] = df_calc['budget_AI_sector'] * a_mean
+    df_calc['UpgradeJob'] = df_calc['budget_H_sector'] * b_mean
+    df_calc['DisplacedJob'] = df_calc['budget_AI_sector'] * c_mean * (df_calc['automation_risk_pct'] / 100)
+    
+    # Công thức cốt lõi: Việc làm ròng
+    df_calc['NetJob'] = df_calc['NewJob'] + df_calc['UpgradeJob'] - df_calc['DisplacedJob']
+    
+    return df_calc
+
+# Khởi chạy hàm tính toán mỗi khi người dùng đổi kịch bản!
+dynamic_sectors_df = calculate_dynamic_labor_impact(current_alloc, sectors_df)
 st.sidebar.markdown("---")
 st.sidebar.info("💡 **Ghi chú:** Dashboard này tích hợp 6 module phân tích từ vĩ mô đến tác động ngành và vùng miền.")
 
@@ -134,21 +165,26 @@ if not macro_df.empty:
         fig_radar.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 100])), title="Biểu đồ Radar đa mục tiêu")
         st.plotly_chart(fig_radar, use_container_width=True)
 
-    # ------------------------------------------
-    # TAB 4: CẢNH BÁO RỦI RO LAO ĐỘNG & MÔI TRƯỜNG
+# ------------------------------------------
+    # TAB 4: CẢNH BÁO RỦI RO LAO ĐỘNG & MÔI TRƯỜNG (DỮ LIỆU ĐỘNG)
     # ------------------------------------------
     with tab4:
-        st.header("Bản đồ Rủi ro Tự động hóa theo Ngành")
-        st.write("Biểu đồ thể hiện nguy cơ mất việc làm trước làn sóng AI tại các ngành kinh tế Việt Nam.")
+        st.header(f"Tác động Việc làm ròng (Net Job) - {scenario}")
+        st.write("Biểu đồ thể hiện số lượng việc làm tạo mới trừ đi số việc làm bị AI thay thế dựa trên dòng vốn bạn vừa phân bổ.")
         
-        fig_risk = px.bar(sectors_df.sort_values('automation_risk_pct'), 
-                          x='automation_risk_pct', y='sector_name_en', orientation='h',
-                          color='automation_risk_pct', color_continuous_scale='Reds',
-                          labels={'automation_risk_pct': 'Tỷ lệ rủi ro tự động hóa (%)', 'sector_name_en': 'Ngành Kinh tế'},
-                          title="Những ngành dễ bị tổn thương nhất do AI")
-        st.plotly_chart(fig_risk, use_container_width=True)
+        # Vẽ biểu đồ Net Job có màu xanh (Dương) và đỏ (Âm)
+        dynamic_sectors_df['Màu sắc'] = np.where(dynamic_sectors_df['NetJob'] < 0, 'Âm (Mất việc)', 'Dương (Tạo mới)')
         
-        st.warning("🚨 **Khuyến nghị:** Các ngành Tài chính-Ngân hàng, Khai khoáng và Chế biến chế tạo cần được ưu tiên phân bổ ngân sách đào tạo lại (Retraining) do rủi ro > 40%.")
-
-else:
-    st.write("Đang chờ tải dữ liệu...")
+        fig_netjob = px.bar(dynamic_sectors_df.sort_values('NetJob'), 
+                          x='NetJob', y='sector_name_en', orientation='h',
+                          color='Màu sắc', color_discrete_map={'Âm (Mất việc)': 'red', 'Dương (Tạo mới)': 'green'},
+                          labels={'NetJob': 'Việc làm ròng (Net Job)', 'sector_name_en': 'Ngành Kinh tế'},
+                          title="Biến động Việc làm theo Kịch bản đầu tư")
+        st.plotly_chart(fig_netjob, use_container_width=True)
+        
+        # Cảnh báo thông minh: Tự động phát hiện ngành bị mất việc
+        nganh_mat_viec = dynamic_sectors_df[dynamic_sectors_df['NetJob'] < 0]['sector_name_en'].tolist()
+        if len(nganh_mat_viec) > 0:
+            st.error(f"🚨 **Cảnh báo khẩn cấp:** Trong kịch bản này, các ngành {', '.join(nganh_mat_viec)} đang bị âm việc làm (NetJob < 0). Bạn cần tăng tỷ trọng đầu tư vào Nhân lực số (H) để tổ chức đào tạo lại (Retraining) cho họ!")
+        else:
+            st.success("✅ **An toàn an sinh xã hội:** Dòng vốn đào tạo (H) đủ lớn để bù đắp mọi rủi ro mất việc từ AI (NetJob >= 0 trên toàn nền kinh tế).")
