@@ -17,9 +17,9 @@ st.markdown("Đồ án môn học: Mô hình ra quyết định phát triển ki
 @st.cache_data
 def load_data():
     try:
-        macro_df = pd.read_csv('data/vietnam_macro_2020_2025.csv')
-        sectors_df = pd.read_csv('data/vietnam_sectors_2024.csv')
-        regions_df = pd.read_csv('data/vietnam_regions_2024.csv')
+macro_df = pd.read_csv('vietnam_macro_2020_2025.csv')
+sectors_df = pd.read_csv('vietnam_sectors_2024.csv')
+regions_df = pd.read_csv('vietnam_regions_2024.csv')
         return macro_df, sectors_df, regions_df
     except FileNotFoundError:
         st.error("⚠️ Không tìm thấy thư mục 'data/'. Vui lòng đảm bảo các file CSV đã được tải lên đúng vị trí.")
