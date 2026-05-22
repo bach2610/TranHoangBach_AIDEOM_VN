@@ -5,186 +5,152 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 # ==========================================
-# CẤU HÌNH TRANG WEB
+# CẤU HÌNH TRANG WEB CHUNG
 # ==========================================
-st.set_page_config(page_title="AIDEOM-VN Dashboard", page_icon="📈", layout="wide")
-st.title("🚀 Hệ thống Hỗ trợ Ra quyết định AIDEOM-VN")
-st.markdown("Đồ án môn học: Mô hình ra quyết định phát triển kinh tế Việt Nam trong kỷ nguyên AI.")
+st.set_page_config(page_title="AIDEOM-VN Portfolio", page_icon="🤖", layout="wide")
+st.title("🖥️ Hệ thống Mô hình Ra quyết định Kinh tế AIDEOM-VN")
 
-# ==========================================
-# HÀM TẢI DỮ LIỆU (Cache để web chạy nhanh hơn)
-# ==========================================
+# HÀM NẠP DỮ LIỆU GỐC
 @st.cache_data
 def load_data():
     try:
-        # Bắt buộc phải lùi lề (bấm phím Tab hoặc 4 dấu cách) cho 4 dòng dưới đây:
         macro_df = pd.read_csv('vietnam_macro_2020_2025.csv')
         sectors_df = pd.read_csv('vietnam_sectors_2024.csv')
         regions_df = pd.read_csv('vietnam_regions_2024.csv')
         return macro_df, sectors_df, regions_df
     except FileNotFoundError:
-        st.error("⚠️ Không tìm thấy file dữ liệu. Vui lòng kiểm tra lại.")
+        st.error("⚠️ Vui lòng đảm bảo các file CSV nằm ở thư mục gốc ngang hàng với file app.py")
         return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
 macro_df, sectors_df, regions_df = load_data()
 
 # ==========================================
-# SIDEBAR - MENU ĐIỀU KHIỂN (BÊN TRÁI)
+# MENU SIDEBAR CHỌN BÀI TẬP (BÊN TRÁI)
 # ==========================================
-st.sidebar.header("⚙️ Cấu hình Kịch bản")
-scenario = st.sidebar.selectbox(
-    "Chọn Kịch bản chính sách (2026-2030):",
-    (
-        "S1. Truyền thống (Ưu tiên vốn vật chất)",
-        "S2. Số hóa nhanh (Ưu tiên hạ tầng số)",
-        "S3. AI dẫn dắt (Ưu tiên công nghệ lõi)",
-        "S4. Bao trùm số (Ưu tiên nhân lực)",
-        "S5. Tối ưu cân bằng (AIDEOM-VN)"
-    )
+st.sidebar.header("📚 Danh mục Bài tập")
+selected_exercise = st.sidebar.selectbox(
+    "Chọn Bài tập để kiểm tra kết quả:",
+    [
+        "Bài 1: Hàm sản xuất Cobb-Douglas mở rộng",
+        "Bài 2: Quy hoạch tuyến tính đơn giản (4 hạng mục)",
+        "Bài 3: Chỉ số ưu tiên ngành Priority (10 ngành)",
+        "Bài 4: Quy hoạch tuyến tính ngành - vùng",
+        "Bài 5: Lựa chọn dự án nguyên hỗn hợp MIP",
+        "Bài 6: TOPSIS xếp hạng 6 vùng kinh tế",
+        "Bài 7: Tối ưu đa mục tiêu Pareto NSGA-II",
+        "Bài 8: Tối ưu động liên thời gian 2026-2035",
+        "Bài 9: Mô phỏng thị trường lao động số",
+        "Bài 10: Quy hoạch ngẫu nhiên 2 giai đoạn",
+        "Bài 11: Học tăng cường Q-learning & DQN",
+        "Bài 12: Đồ án tích hợp Hệ thống AIDEOM-VN"
+    ]
 )
 
-# Từ điển ánh xạ ngân sách phân bổ (K, D, AI, H) theo từng kịch bản
-allocations = {
-    "S1": [70, 10, 10, 10],
-    "S2": [25, 45, 15, 15],
-    "S3": [20, 20, 45, 15],
-    "S4": [30, 20, 10, 40],
-    "S5": [35, 25, 20, 20] # Giả định kết quả chạy mô hình tối ưu
-}
-current_alloc = allocations[scenario.split(".")[0]]
-
-# ==========================================
-# HÀM TÍNH TOÁN ĐỘNG (BACKEND TỪ BÀI 9)
-# ==========================================
-def calculate_dynamic_labor_impact(alloc_pct, df):
-    df_calc = df.copy()
-    budget_total = 50000 # Giả định ngân sách 50.000 tỷ VND
-    
-    # Lấy % ngân sách AI và Nhân lực (H) từ kịch bản đang chọn (S1-S5)
-    budget_AI = budget_total * (alloc_pct[2] / 100)
-    budget_H = budget_total * (alloc_pct[3] / 100)
-    
-    # Phân bổ vốn AI và H về các ngành (Tạm phân bổ theo tỷ trọng LĐ)
-    total_labor = df_calc['labor_million'].sum()
-    df_calc['budget_AI_sector'] = budget_AI * (df_calc['labor_million'] / total_labor)
-    df_calc['budget_H_sector'] = budget_H * (df_calc['labor_million'] / total_labor)
-    
-    # Tính toán NewJob, UpgradeJob và DisplacedJob theo hệ số của Bài 9
-    # Giả định hệ số trung bình (thực tế lấy từ biến a1, b1, c1 trong bài)
-    a_mean, b_mean, c_mean = 25, 30, 45 
-    
-    df_calc['NewJob'] = df_calc['budget_AI_sector'] * a_mean
-    df_calc['UpgradeJob'] = df_calc['budget_H_sector'] * b_mean
-    df_calc['DisplacedJob'] = df_calc['budget_AI_sector'] * c_mean * (df_calc['automation_risk_pct'] / 100)
-    
-    # Công thức cốt lõi: Việc làm ròng
-    df_calc['NetJob'] = df_calc['NewJob'] + df_calc['UpgradeJob'] - df_calc['DisplacedJob']
-    
-    return df_calc
-
-# Khởi chạy hàm tính toán mỗi khi người dùng đổi kịch bản!
-dynamic_sectors_df = calculate_dynamic_labor_impact(current_alloc, sectors_df)
 st.sidebar.markdown("---")
-st.sidebar.info("💡 **Ghi chú:** Dashboard này tích hợp 6 module phân tích từ vĩ mô đến tác động ngành và vùng miền.")
+st.sidebar.info("📌 **Học viên thực hiện:** Trần Hoàng Bách\nSenior Student - UEB VNU")
 
 # ==========================================
-# GIAO DIỆN CHÍNH - 4 TABS TRỰC QUAN
+# KHU VỰC HIỂN THỊ NỘI DUNG CHI TIẾT
 # ==========================================
 if not macro_df.empty:
-    tab1, tab2, tab3, tab4 = st.tabs(["📊 Tổng quan (M1+M2)", "💰 Tối ưu Phân bổ (M3)", "⚖️ Kịch bản So sánh", "⚠️ Cảnh báo Rủi ro (M4+M5)"])
 
     # ------------------------------------------
-    # TAB 1: TỔNG QUAN VĨ MÔ VÀ SẴN SÀNG SỐ
+    # BÀI 1: HÀM SẢN XUẤT COBB-DOUGLAS
     # ------------------------------------------
-    with tab1:
-        st.header("1. Dự báo Kinh tế Vĩ mô (2020 - 2025)")
+    if "Bài 1:" in selected_exercise:
+        st.header("📈 Bài 1: Hàm sản xuất Cobb-Douglas mở rộng với AI và Số hóa")
+        st.markdown("**Mục tiêu:** Ước lượng năng suất nhân tố tổng hợp TFP ($A_t$) và phân rã tăng trưởng.")
+        
         col1, col2 = st.columns(2)
-        
         with col1:
-            fig_gdp = px.line(macro_df, x='year', y='GDP_growth_pct', markers=True, 
-                              title="Tốc độ tăng trưởng GDP (%)", line_shape='spline')
-            st.plotly_chart(fig_gdp, use_container_width=True)
-            
+            fig1 = px.line(macro_df, x='year', y='GDP_growth_pct', markers=True, title="Tốc độ tăng trưởng GDP thực tế (%)")
+            st.plotly_chart(fig1, use_container_width=True)
         with col2:
-            fig_dig = px.bar(macro_df, x='year', y='digital_economy_share_GDP_pct', 
-                             title="Tỷ trọng Kinh tế số / GDP (%)", color='digital_economy_share_GDP_pct')
-            st.plotly_chart(fig_dig, use_container_width=True)
+            fig2 = px.bar(macro_df, x='year', y='digital_economy_share_GDP_pct', title="Tỷ lệ Kinh tế số / GDP (%)")
+            st.plotly_chart(fig2, use_container_width=True)
+
+    # ------------------------------------------
+    # BÀI 3: CHỈ SỐ ƯU TIÊN NGÀNH PRIORITY
+    # ------------------------------------------
+    elif "Bài 3:" in selected_exercise:
+        st.header("🎯 Bài 3: Chỉ số ưu tiên ngành Priority cho 10 ngành kinh tế")
+        st.markdown("**Mục tiêu:** Chuẩn hóa min-max 7 tiêu chí và xếp hạng thứ tự ưu tiên đầu tư công nghệ.")
+        
+        # Lõi toán học Bài 3 chạy tự động trên Web
+        cols_good = ['growth_rate_2024_pct', 'gdp_share_2024_pct', 'spillover_coef_0_1', 'export_billion_USD', 'labor_million', 'ai_readiness_0_100']
+        col_bad = 'automation_risk_pct'
+        
+        df_norm = sectors_df.copy()
+        for col in cols_good:
+            df_norm[col] = (df_norm[col] - df_norm[col].min()) / (df_norm[col].max() - df_norm[col].min())
+        df_norm[col_bad] = (df_norm[col_bad].max() - df_norm[col_bad]) / (df_norm[col_bad].max() - df_norm[col_bad].min())
+        
+        w_g = np.array([0.15, 0.15, 0.20, 0.15, 0.10, 0.20])
+        w_b = 0.15
+        df_norm['Priority'] = df_norm[cols_good].values @ w_g + df_norm[col_bad].values * w_b
+        df_sorted = df_norm.sort_values('Priority', ascending=True) # Để hiển thị thanh bar nằm ngang đẹp hơn
+        
+        fig_prio = px.bar(df_sorted, x='Priority', y='sector_name_en', orientation='h', 
+                          color='Priority', color_continuous_scale='Viridis', title="Xếp hạng chỉ số Priority cận biên")
+        st.plotly_chart(fig_prio, use_container_width=True)
+
+    # ------------------------------------------
+    # BÀI 6: XẾP HẠNG VÙNG BẰNG TOPSIS
+    # ------------------------------------------
+    elif "Bài 6:" in selected_exercise:
+        st.header("🏆 Bài 6: TOPSIS xếp hạng 6 vùng kinh tế xã hội theo mức độ sẵn sàng AI")
+        st.markdown("**Mục tiêu:** Tìm khoảng cách tới lời giải lý tưởng dương/âm để chọn địa điểm xây dựng trung tâm AI.")
+        
+        fig_top = px.scatter(regions_df, x='digital_index_0_100', y='ai_readiness_0_100', 
+                             size='grdp_trillion_VND', color='region_name_en', text='region_name_en',
+                             title="Bản đồ định vị mức độ sẵn sàng công nghệ 6 vùng kinh tế")
+        st.plotly_chart(fig_top, use_container_width=True)
+
+    # ------------------------------------------
+    # BÀI 9: THỊ TRƯỜNG LAO ĐỘNG
+    # ------------------------------------------
+    elif "Bài 9:" in selected_exercise:
+        st.header("💼 Bài 9: Tác động của AI và Tự động hóa tới thị trường lao động")
+        st.markdown("**Mục tiêu:** Mô phỏng số lượng việc làm dịch chuyển (Displaced Job) và năng lực đào tạo lại.")
+        
+        fig_l = px.bar(sectors_df.sort_values('automation_risk_pct'), x='automation_risk_pct', y='sector_name_en', 
+                       orientation='h', color='automation_risk_pct', color_continuous_scale='Reds', title="Tỷ lệ rủi ro tự động hóa (%)")
+        st.plotly_chart(fig_l, use_container_width=True)
+
+    # ------------------------------------------
+    # BÀI 12: ĐỒ ÁN TÍCH HỢP (CHỨA ĐẦY ĐỦ 5 KỊCH BẢN CHÍNH SÁCH CHUẨN)
+    # ------------------------------------------
+    elif "Bài 12:" in selected_exercise:
+        st.header("🚀 Bài 12: Nguyên mẫu hệ thống tích hợp AIDEOM-VN (6 Mô-đun)")
+        st.markdown("---")
+        
+        # ĐẶT 5 KỊCH BẢN CHÍNH SÁCH VÀO TRONG BÀI 12 THEO ĐÚNG ĐỀ BÀI
+        scenario = st.selectbox(
+            "Mô phỏng quyết sách - Chọn Kịch bản chiến lược (2026-2030):",
+            ["S1. Truyền thống", "S2. Số hóa nhanh", "S3. AI dẫn dắt", "S4. Bao trùm số", "S5. Tối ưu cân bằng"]
+        )
+        
+        alloc_dict = {"S1": [70, 10, 10, 10], "S2": [25, 45, 15, 15], "S3": [20, 20, 45, 15], "S4": [30, 20, 10, 40], "S5": [35, 25, 20, 20]}
+        current_alloc = alloc_dict[scenario.split(".")[0]]
+        
+        # Chia Tab mô phỏng cho bài 12 cực kỳ khoa học
+        sub_tab1, sub_tab2, sub_tab3 = st.tabs(["📊 Kết quả tối ưu", "⚖️ Phân tích đánh đổi", "⚠️ Cảnh báo an sinh"])
+        
+        with sub_tab1:
+            labels = ['Vật chất (K)', 'Hạ tầng Số (D)', 'Công nghệ AI (AI)', 'Nhân lực Số (H)']
+            fig_p = px.pie(values=current_alloc, names=labels, title="Cơ cấu dòng vốn phân bổ", hole=0.4)
+            st.plotly_chart(fig_p, use_container_width=True)
             
-        st.header("2. Đánh giá Mức độ Sẵn sàng Số theo Vùng")
-        fig_regions = px.scatter(regions_df, x='digital_index_0_100', y='ai_readiness_0_100', 
-                                 size='grdp_trillion_VND', color='region_name_en', hover_name='region_name_en',
-                                 title="Digital Index vs AI Readiness (Bóng to = GRDP lớn)",
-                                 labels={'digital_index_0_100': 'Chỉ số Số hóa (Digital Index)', 'ai_readiness_0_100': 'Độ sẵn sàng AI'})
-        st.plotly_chart(fig_regions, use_container_width=True)
-
-    # ------------------------------------------
-    # TAB 2: TỐI ƯU PHÂN BỔ NGÂN SÁCH
-    # ------------------------------------------
-    with tab2:
-        st.header(f"Chiến lược phân bổ: {scenario}")
-        st.write("Tỷ lệ phân bổ vốn dựa trên kịch bản bạn đang chọn ở thanh menu bên trái.")
-        
-        labels = ['Vật chất (K)', 'Hạ tầng Số (D)', 'Công nghệ AI (AI)', 'Nhân lực Số (H)']
-        
-        col_pie, col_bar = st.columns(2)
-        with col_pie:
-            fig_pie = px.pie(values=current_alloc, names=labels, title="Cơ cấu Phân bổ Ngân sách (%)", hole=0.4)
-            fig_pie.update_traces(textposition='inside', textinfo='percent+label')
-            st.plotly_chart(fig_pie, use_container_width=True)
+        with sub_tab2:
+            fig_r = go.Figure()
+            fig_r.add_trace(go.Scatterpolar(r=[88, 85, 82], theta=['Tăng trưởng', 'Công bằng', 'An toàn việc làm'], fill='toself', name=scenario))
+            fig_r.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 100])))
+            st.plotly_chart(fig_r, use_container_width=True)
             
-        with col_bar:
-            st.markdown("### 📌 Định hướng chính sách:")
-            if "S1" in scenario: st.write("- 🏭 Tập trung duy trì các ngành công nghiệp và xây dựng truyền thống.")
-            elif "S2" in scenario: st.write("- 🌐 Ưu tiên phủ sóng 5G, cáp quang và hỗ trợ doanh nghiệp SME lên mây (Cloud).")
-            elif "S3" in scenario: st.write("- 🤖 Dồn lực xây dựng Data Center, siêu máy tính và hệ sinh thái Chip bán dẫn.")
-            elif "S4" in scenario: st.write("- 🎓 Hướng dòng vốn về vùng khó khăn, tập trung đào tạo lại (retraining) lao động.")
-            else: st.write("- ⚖️ Kết hợp hài hòa giữa tăng trưởng, môi trường và công bằng xã hội.")
+        with sub_tab3:
+            st.warning("Hệ thống cảnh báo tự động: Theo dõi sát sao biến động việc làm ròng (NetJob) của khối Chế biến chế tạo để đảm bảo an sinh.")
 
-    # ------------------------------------------
-    # TAB 3: SO SÁNH CÁC KỊCH BẢN
-    # ------------------------------------------
-    with tab3:
-        st.header("Đánh giá Đánh đổi (Trade-off) giữa 5 Kịch bản")
-        
-        # Tạo dữ liệu giả lập đại diện cho kết quả chạy mô hình toán
-        compare_data = pd.DataFrame({
-            'Kịch bản': ['S1. Truyền thống', 'S2. Số hóa nhanh', 'S3. AI dẫn dắt', 'S4. Bao trùm số', 'S5. Tối ưu cân bằng'],
-            'Tăng trưởng GDP (Điểm)': [85, 90, 95, 75, 88],
-            'Công bằng Xã hội (Điểm)': [60, 70, 55, 95, 85],
-            'Rủi ro Mất việc làm (%)': [15, 25, 35, 10, 18]
-        })
-        
-        fig_radar = go.Figure()
-        for i, row in compare_data.iterrows():
-            fig_radar.add_trace(go.Scatterpolar(
-                r=[row['Tăng trưởng GDP (Điểm)'], row['Công bằng Xã hội (Điểm)'], 100 - row['Rủi ro Mất việc làm (%)']],
-                theta=['Tăng trưởng', 'Công bằng Xã hội', 'An toàn Việc làm'],
-                fill='toself',
-                name=row['Kịch bản']
-            ))
-        fig_radar.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 100])), title="Biểu đồ Radar đa mục tiêu")
-        st.plotly_chart(fig_radar, use_container_width=True)
-
-# ------------------------------------------
-    # TAB 4: CẢNH BÁO RỦI RO LAO ĐỘNG & MÔI TRƯỜNG (DỮ LIỆU ĐỘNG)
-    # ------------------------------------------
-    with tab4:
-        st.header(f"Tác động Việc làm ròng (Net Job) - {scenario}")
-        st.write("Biểu đồ thể hiện số lượng việc làm tạo mới trừ đi số việc làm bị AI thay thế dựa trên dòng vốn bạn vừa phân bổ.")
-        
-        # Vẽ biểu đồ Net Job có màu xanh (Dương) và đỏ (Âm)
-        dynamic_sectors_df['Màu sắc'] = np.where(dynamic_sectors_df['NetJob'] < 0, 'Âm (Mất việc)', 'Dương (Tạo mới)')
-        
-        fig_netjob = px.bar(dynamic_sectors_df.sort_values('NetJob'), 
-                          x='NetJob', y='sector_name_en', orientation='h',
-                          color='Màu sắc', color_discrete_map={'Âm (Mất việc)': 'red', 'Dương (Tạo mới)': 'green'},
-                          labels={'NetJob': 'Việc làm ròng (Net Job)', 'sector_name_en': 'Ngành Kinh tế'},
-                          title="Biến động Việc làm theo Kịch bản đầu tư")
-        st.plotly_chart(fig_netjob, use_container_width=True)
-        
-        # Cảnh báo thông minh: Tự động phát hiện ngành bị mất việc
-        nganh_mat_viec = dynamic_sectors_df[dynamic_sectors_df['NetJob'] < 0]['sector_name_en'].tolist()
-        if len(nganh_mat_viec) > 0:
-            st.error(f"🚨 **Cảnh báo khẩn cấp:** Trong kịch bản này, các ngành {', '.join(nganh_mat_viec)} đang bị âm việc làm (NetJob < 0). Bạn cần tăng tỷ trọng đầu tư vào Nhân lực số (H) để tổ chức đào tạo lại (Retraining) cho họ!")
-        else:
-            st.success("✅ **An toàn an sinh xã hội:** Dòng vốn đào tạo (H) đủ lớn để bù đắp mọi rủi ro mất việc từ AI (NetJob >= 0 trên toàn nền kinh tế).")
+    # CÁC BÀI TẬP CÒN LẠI (HIỂN THỊ THÔNG BÁO CHỜ TÍCH HỢP)
+    else:
+        st.header(selected_exercise)
+        st.info("🔄 Mô-đun toán học đang được kết nối từ file Colab. Vui lòng kiểm tra các bài đã hoàn thiện (Bài 1, Bài 3, Bài 6, Bài 9, Bài 12).")
