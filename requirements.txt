@@ -1,10 +1,49 @@
-streamlit>=1.28
-pandas>=2.0
+# =====================================================================
+# requirements.txt — AIDEOM-VN
+# Mô hình Ra quyết định Phát triển Kinh tế Việt Nam trong Kỷ nguyên AI
+# Trần Hoàng Bách — Viện Quản trị Kinh doanh, ĐH Kinh tế, ĐHQGHN
+#
+# Cài đặt: pip install -r requirements.txt
+# Môi trường khuyến nghị: Python 3.10 / 3.11
+# Thử nghiệm thành công trên: Python 3.11 (Ubuntu 24.04 / macOS 14)
+# =====================================================================
+
+# ── Khoa học dữ liệu cơ bản ─────────────────────────────────────────
 numpy>=1.24
-pulp>=2.7
-cvxpy>=1.4
-pymoo>=0.6.1
+pandas>=2.0
+scipy>=1.10
 matplotlib>=3.7
 seaborn>=0.12
-plotly>=5.17
-pyomo>=6.6
+
+# ── Tối ưu hóa tuyến tính & phi tuyến ───────────────────────────────
+pulp>=2.7                   # Bài 2, 4, 5, 9  — LP / MIP / CBC solver
+cvxpy>=1.4                  # Bài 8, 9        — Convex optimization
+pyomo>=6.6                  # Bài 10          — Stochastic programming
+highspy>=1.7                # Bài 4, 8, 10    — HiGHS solver (backend cho pyomo & cvxpy)
+
+# ── Tối ưu đa mục tiêu & tiến hóa ───────────────────────────────────
+pymoo>=0.6.1                # Bài 7           — NSGA-II Pareto frontier
+
+# ── Học tăng cường (Reinforcement Learning) ─────────────────────────
+# Dùng cho notebook gốc (Bài 11 DQN — Câu 11.3.5 mở rộng).
+# App Streamlit (app.py) đã tự cài đặt môi trường MDP thuần Python,
+# KHÔNG phụ thuộc gymnasium / stable-baselines3 để chạy Q-learning tabular.
+gymnasium>=0.29             # Bài 11 notebook — MDP environment
+stable-baselines3>=2.1      # Bài 11 notebook — DQN (câu mở rộng)
+torch>=2.0                  # Backend cho stable-baselines3
+
+# ── Dashboard & Trực quan hóa ────────────────────────────────────────
+streamlit>=1.28             # app.py          — Web dashboard
+plotly>=5.17                # app.py          — Biểu đồ tương tác
+
+# ── Tiện ích ─────────────────────────────────────────────────────────
+tqdm>=4.65                  # Progress bar khi train RL nhiều episode
+openpyxl>=3.1               # Đọc/ghi Excel (xuất kết quả báo cáo)
+jupyterlab>=4.0             # Chạy notebook .ipynb
+
+# ── Ghi chú solver ───────────────────────────────────────────────────
+# CBC solver đi kèm PuLP (tự động) — đủ cho Bài 2, 4, 5.
+# HiGHS (highspy) được dùng bởi Pyomo (Bài 10) và CVXPY (Bài 8).
+# GLPK (tùy chọn): conda install -c conda-forge glpk
+# Gurobi (tùy chọn, hiệu suất cao hơn cho MIP lớn):
+#   pip install gurobipy   # cần license học thuật tại gurobi.com/academia
