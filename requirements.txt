@@ -7,3 +7,4 @@ pymoo>=0.6.1
 matplotlib>=3.7
 seaborn>=0.12
 plotly>=5.17
+pyomo>=6.6
