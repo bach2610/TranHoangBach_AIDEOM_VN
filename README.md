@@ -87,9 +87,9 @@ drive.mount('/content/drive')
 ├── README.md                             # File này
 ├── app.py                                # Dashboard Streamlit (Bài 12)
 ├── requirements.txt                      # Danh sách thư viện Python
-├── vietnam_macro_2020_2025.csv       # Dữ liệu vĩ mô 2020-2025
-├── vietnam_regions_2024.csv          # Dữ liệu 6 vùng KT-XH 2024
-└── vietnam_sectors_2024.csv          # Dữ liệu 10 ngành 2024
+├── vietnam_macro_2020_2025.csv           # Dữ liệu vĩ mô 2020-2025
+├── vietnam_regions_2024.csv              # Dữ liệu 6 vùng KT-XH 2024
+└── vietnam_sectors_2024.csv              # Dữ liệu 10 ngành 2024
 ```
 
 ---
